@@ -4,6 +4,11 @@ import java.util.concurrent.ThreadLocalRandom;
 import javax.swing.JOptionPane;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.json.JSONObject;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  *
@@ -42,7 +47,7 @@ public class Message {
                 messageHash[i] = null;
                 break;
             case 3: // Store
-                storeMessage(messages[i]);
+                storeMessage(messages[i],messageID[i],messageHash[i],recipient);
                 break;
             case -1: // User canceled
                 JOptionPane.showMessageDialog(null, "Exiting message input");
@@ -165,7 +170,7 @@ public class Message {
      
      private int sentMessages(String message) {
     String optionInput = JOptionPane.showInputDialog(
-        "Message Menu\n" +
+        "What would you like to do with your message?\n" +
         "Option 1: Send Message\n" +
         "Option 2: Disregard Message\n" +
         "Option 3: Store Message to send later"
@@ -193,7 +198,6 @@ public class Message {
                     return 1;  // Treat as sent if they keep it
                 }
             case 3:
-                storeMessage(message);
                 return 3;
             default:
                 JOptionPane.showMessageDialog(null, "Invalid option");
@@ -204,10 +208,6 @@ public class Message {
         return sentMessages(message);  // Retry
     }
 }
-     
-     private void storeMessage(String message) {
-        JOptionPane.showMessageDialog(null,"Messages stored for later usage");
-    }
      
      private void printMessages(Long[] messageID, String[] messageHash, String recipient, String[] messages) {
            StringBuilder output = new StringBuilder("=== Messages Summary ===\n\n");
@@ -233,6 +233,42 @@ public class Message {
     }
     return count;
   }
+     
+     //OpenAI. (2025). ChatGPT response providing a Java method for saving messages to a JSON file. ChatGPT. Available at: https://chat.openai.com/ [Accessed 26 May 2025].
+     public void storeMessage(String message, long messageID, String hash, String recipient) {
+       try {
+        // Create a new JSON object
+        JSONObject msgObject = new JSONObject();
+        msgObject.put("id", messageID);
+        msgObject.put("recipient", recipient);
+        msgObject.put("message", message);
+        msgObject.put("hash", hash);
+
+        // JSON array handling (create or append)
+        String filePath = "saved_messages.json";
+        JSONObject root;
+
+        if (Files.exists(Paths.get(filePath))) {
+            String content = new String(Files.readAllBytes(Paths.get(filePath)));
+            root = new JSONObject(content);
+        } else {
+            root = new JSONObject();
+            root.put("messages", new org.json.JSONArray());
+        }
+
+        root.getJSONArray("messages").put(msgObject);
+
+        // Write back to file
+        try (FileWriter file = new FileWriter(filePath)) {
+            file.write(root.toString(4)); // Pretty print with 4-space indent
+        }
+        JOptionPane.showMessageDialog(null,"Message Saved Successfully");
+        System.out.println("Message saved successfully!");
+
+    } catch (IOException e) {
+        System.err.println("Error saving message: " + e.getMessage());
+    }
+}
 }
 
 
