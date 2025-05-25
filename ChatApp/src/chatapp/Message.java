@@ -12,26 +12,50 @@ import java.util.regex.Pattern;
 public class Message {
     
        
-     public void addMessage(){
-         
-        int numMessage = getMessageNumber();
-         String recipient = checkRecipientCell();
-         String[] messages = new String[numMessage];
-         
-        for(int i = 0; i < messages.length; i++){
-            //assigns message
-           messages[i] = getMessage();
-        
-           long messageID = ThreadLocalRandom.current().nextLong(1_000_000_000L, 10_000_000_000L);
-            String messageHash = createMessageHash(messageID,i,messages[i]);
-         
-           if(!checkMessageID(messageID)){
-            JOptionPane.showMessageDialog(null, "An error occured","Error",JOptionPane.ERROR_MESSAGE);
-             }
-           SentMessages(messages[i]);
+     public void addMessage() {
+    int numMessage = getMessageNumber();
+    String recipient = checkRecipientCell();
+
+    String[] messages = new String[numMessage];
+    String[] messageHash = new String[numMessage];
+    Long[] messageID = new Long[numMessage];
+    boolean[] sentFlags = new boolean[numMessage];  // Track sent status
+
+    for (int i = 0; i < numMessage; i++) {
+        messages[i] = getMessage();
+        messageID[i] = ThreadLocalRandom.current().nextLong(1_000_000_000L, 10_000_000_000L);
+        messageHash[i] = createMessageHash(messageID[i], i, messages[i]);
+
+        if (!checkMessageID(messageID[i])) {
+            JOptionPane.showMessageDialog(null, "An error occurred", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
-        printMessages(messages);
+
+        int action = sentMessages(messages[i]);
+        switch (action) {
+            case 1: // Sent
+                sentFlags[i] = true;
+                break;
+            case 2: // Disregard
+                messages[i] = null;
+                messageID[i] = null;
+                messageHash[i] = null;
+                break;
+            case 3: // Store
+                storeMessage(messages[i]);
+                break;
+            case -1: // User canceled
+                JOptionPane.showMessageDialog(null, "Exiting message input");
+                return;
+            default:
+                // Shouldn't happen
+        }
     }
+    
+    int totalSent = returnTotalMessages(sentFlags);
+    JOptionPane.showMessageDialog(null, "Total messages sent: " + totalSent);
+    printMessages(messageID, messageHash, recipient, messages);
+}
     
      private int getMessageNumber(){
         boolean valid = false;
@@ -139,67 +163,76 @@ public class Message {
         return firstTwoDigits + ":" + messageNumber + ":" + firstWord + " " + lastWord;
     }
      
-     private void SentMessages(String message){
-     int opt;
-     String option;
-     
-     option = JOptionPane.showInputDialog("Message Menu\n Option 1: Send Message\n Option 2: Disregard Message\n Option 3: Store Message to send later");
-     
-     if(option == null){
-       JOptionPane.showMessageDialog(null,"Exiting");
-       return;
-     }
-     try{
-     opt = Integer.parseInt(option);
-     
-     if(opt == 0){
-       JOptionPane.showMessageDialog(null,"Exiting");
-       return;
-     }
-     
-     switch(opt){
-         case 1:
-              JOptionPane.showMessageDialog(null,"Message sent");
-             break;
-         case 2:
-             int reply = JOptionPane.showConfirmDialog(null, "Are you sure you want to diregard the message?", "Disregard ?", JOptionPane.YES_NO_OPTION);
-             if (reply == JOptionPane.YES_OPTION) {
-                   message = null;
-                  JOptionPane.showMessageDialog(null, "Deleted");
-             } else {
-             JOptionPane.showMessageDialog(null, "Mesaage intacked");
-             }
-             break;
-         case 3: 
-             //Stores the messages in a JSON File
-             storeMessage(message);
-             break;
-         default:
-          JOptionPane.showMessageDialog(null, "Error: Enter Correct Option" );
-            }
-  
+     private int sentMessages(String message) {
+    String optionInput = JOptionPane.showInputDialog(
+        "Message Menu\n" +
+        "Option 1: Send Message\n" +
+        "Option 2: Disregard Message\n" +
+        "Option 3: Store Message to send later"
+    );
+
+    if (optionInput == null) {
+        return -1;  // User canceled
+    }
+
+    try {
+        int option = Integer.parseInt(optionInput);
+        switch (option) {
+            case 1:
+                JOptionPane.showMessageDialog(null, "Message sent");
+                return 1;
+            case 2:
+                int reply = JOptionPane.showConfirmDialog(null,
+                    "Are you sure you want to disregard the message?",
+                    "Disregard?", JOptionPane.YES_NO_OPTION);
+                if (reply == JOptionPane.YES_OPTION) {
+                    JOptionPane.showMessageDialog(null, "Message disregarded");
+                    return 2;
+                } else {
+                    JOptionPane.showMessageDialog(null, "Message kept");
+                    return 1;  // Treat as sent if they keep it
+                }
+            case 3:
+                storeMessage(message);
+                return 3;
+            default:
+                JOptionPane.showMessageDialog(null, "Invalid option");
+                return sentMessages(message);  // Retry
+        }
     } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(null, "Error: Please Enter Correct Option .","Error",JOptionPane.ERROR_MESSAGE);
-         }
-      }
+        JOptionPane.showMessageDialog(null, "Please enter a valid number");
+        return sentMessages(message);  // Retry
+    }
+}
      
      private void storeMessage(String message) {
         JOptionPane.showMessageDialog(null,"Messages stored for later usage");
     }
      
-     private void printMessages(String[] messages){
-      StringBuilder messageToDisplay = new StringBuilder();
-
-        for(String message : messages) {
-            messageToDisplay.append(message);
-            messageToDisplay.append("\n"); // Add a newline after each message
+     private void printMessages(Long[] messageID, String[] messageHash, String recipient, String[] messages) {
+           StringBuilder output = new StringBuilder("=== Messages Summary ===\n\n");
+            output.append("Recipient: ").append(recipient).append("\n\n");
+    
+    for (int i = 0; i < messages.length; i++) {
+        if (messages[i] != null && !messages[i].isBlank()) {
+            output.append("Message #").append(i + 1).append("\n");
+            output.append("ID: ").append(messageID[i]).append("\n");
+            output.append("Hash: ").append(messageHash[i]).append("\n");
+            output.append("Content: ").append(messages[i]).append("\n");
+            output.append("-------------------------\n");
         }
-
-        // Display the message using JOptionPane
-        JOptionPane.showMessageDialog(null, messageToDisplay.toString(), "Messages", JOptionPane.INFORMATION_MESSAGE);
-       }
+    }
+    
+    JOptionPane.showMessageDialog(null, output.toString(), "Messages Summary", JOptionPane.INFORMATION_MESSAGE);
+    }
      
-     private void returnTotalMessages(){}
-     }
+     private int returnTotalMessages(boolean[] sentFlags) {
+    int count = 0;
+    for (boolean sent : sentFlags) {
+        if (sent) count++;
+    }
+    return count;
+  }
+}
 
 
